@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum NavigationType {
+public enum NavigationType {
     case push
     case present
     case sheet

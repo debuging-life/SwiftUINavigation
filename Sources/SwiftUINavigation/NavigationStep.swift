@@ -6,7 +6,6 @@
 //
 
 import Foundation
-
 import SwiftUI
 
 // MARK: - Navigation Step Protocol
@@ -20,14 +19,14 @@ protocol NavigationStepProtocol: Equatable {
 }
 
 // MARK: - Generic Navigation Step
-struct NavigationStep<T: Hashable>: @MainActor NavigationStepProtocol {
-    var destination: T?
-    var isPresented: Bool
-    var type: NavigationType
-    var onComplete: (() -> Void)?
-    var onDismiss: (() -> Void)?
+public struct NavigationStep<T: Hashable>: @MainActor NavigationStepProtocol {
+    public var destination: T?
+    public var isPresented: Bool
+    public var type: NavigationType
+    public var onComplete: (() -> Void)?
+    public var onDismiss: (() -> Void)?
     
-    init(
+    public init(
         destination: T? = nil,
         isPresented: Bool = false,
         type: NavigationType = .push,
@@ -41,7 +40,7 @@ struct NavigationStep<T: Hashable>: @MainActor NavigationStepProtocol {
         self.onDismiss = onDismiss
     }
     
-    static func == (lhs: NavigationStep<T>, rhs: NavigationStep<T>) -> Bool {
+    public static func == (lhs: NavigationStep<T>, rhs: NavigationStep<T>) -> Bool {
         lhs.destination == rhs.destination &&
         lhs.isPresented == rhs.isPresented &&
         lhs.type == rhs.type
@@ -50,5 +49,5 @@ struct NavigationStep<T: Hashable>: @MainActor NavigationStepProtocol {
 
 // MARK: - Extensions
 extension NavigationStep: Identifiable {
-    var id: T? { destination }
+    public var id: T? { destination }
 }

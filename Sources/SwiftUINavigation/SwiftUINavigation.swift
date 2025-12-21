@@ -5,17 +5,19 @@ import SwiftUI
 
 // MARK: - Generic Coordinator
 @Observable
-class NavigationCoordinator<Destination: Hashable> {
-    var navigationPath = NavigationPath()
-    var presentedSheet: NavigationStep<Destination>?
-    var presentedFullScreenCover: NavigationStep<Destination>?
-    var presentedItem: NavigationStep<Destination>?
+public class NavigationCoordinator<Destination: Hashable> {
+    public var navigationPath = NavigationPath()
+        public var presentedSheet: NavigationStep<Destination>?
+        public var presentedFullScreenCover: NavigationStep<Destination>?
+        public var presentedItem: NavigationStep<Destination>?
+        
+        private var onCompleteHandlers: [UUID: () -> Void] = [:]
+        private var onDismissHandlers: [UUID: () -> Void] = [:]
+        private var stepIdentifiers: [Destination: UUID] = [:]
+        
+        public init() {}
     
-    private var onCompleteHandlers: [UUID: () -> Void] = [:]
-    private var onDismissHandlers: [UUID: () -> Void] = [:]
-    private var stepIdentifiers: [Destination: UUID] = [:]
-    
-    func navigate(to step: NavigationStep<Destination>) {
+    public func navigate(to step: NavigationStep<Destination>) {
         let identifier = UUID()
         
         if let destination = step.destination {
@@ -50,7 +52,7 @@ class NavigationCoordinator<Destination: Hashable> {
     /// - Parameters:
     ///   - destinations: Array of destinations to navigate to
     ///   - onBatchComplete: Called after all destinations are pushed (optional)
-    func navigateToMultiple(
+    public func navigateToMultiple(
         _ destinations: [Destination],
         onBatchComplete: (() -> Void)? = nil
     ) {
@@ -68,7 +70,7 @@ class NavigationCoordinator<Destination: Hashable> {
     
     /// Navigate to multiple destinations with individual callbacks
     /// - Parameter steps: Array of destinations with their respective callbacks
-    func navigateToMultiple(_ steps: [(destination: Destination, onComplete: (() -> Void)?, onDismiss: (() -> Void)?)]) {
+    public func navigateToMultiple(_ steps: [(destination: Destination, onComplete: (() -> Void)?, onDismiss: (() -> Void)?)]) {
         for step in steps {
             let identifier = UUID()
             stepIdentifiers[step.destination] = identifier
@@ -87,7 +89,7 @@ class NavigationCoordinator<Destination: Hashable> {
     
     /// Navigate back multiple steps
     /// - Parameter count: Number of steps to go back (default: all)
-    func navigateBack(count: Int? = nil) {
+    public func navigateBack(count: Int? = nil) {
         let stepsToRemove = count ?? navigationPath.count
         
         for _ in 0..<min(stepsToRemove, navigationPath.count) {
@@ -97,14 +99,14 @@ class NavigationCoordinator<Destination: Hashable> {
     
     // MARK: - Existing Methods
     
-    func completeStep(for destination: Destination) {
+    public func completeStep(for destination: Destination) {
         if let identifier = stepIdentifiers[destination], let handler = onCompleteHandlers[identifier] {
             handler()
             onCompleteHandlers.removeValue(forKey: identifier)
         }
     }
     
-    func dismissStep(for destination: Destination) {
+    public func dismissStep(for destination: Destination) {
         if let identifier = stepIdentifiers[destination], let handler = onDismissHandlers[identifier] {
             handler()
             onDismissHandlers.removeValue(forKey: identifier)
@@ -112,20 +114,20 @@ class NavigationCoordinator<Destination: Hashable> {
         }
     }
     
-    func navigateBack() {
+    public func navigateBack() {
         if !navigationPath.isEmpty {
             navigationPath.removeLast()
         }
     }
     
-    func navigateToRoot() {
+    public func navigateToRoot() {
         navigationPath = NavigationPath()
         onCompleteHandlers.removeAll()
         onDismissHandlers.removeAll()
         stepIdentifiers.removeAll()
     }
     
-    func dismissPresented() {
+    public func dismissPresented() {
         if let step = presentedSheet, let destination = step.destination {
             dismissStep(for: destination)
         }
