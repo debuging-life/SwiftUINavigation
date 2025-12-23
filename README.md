@@ -106,7 +106,6 @@ struct AuthCoordinatorView: View {
         }
     }
     
-    @Sendable
     private func handleDeepLink(_ url: URL, _ coordinator: AuthCoordinator) {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else {
             return
