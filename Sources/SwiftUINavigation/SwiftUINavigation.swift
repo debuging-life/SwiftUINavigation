@@ -7,15 +7,15 @@ import SwiftUI
 @Observable
 public class NavigationCoordinator<Destination: Hashable> {
     public var navigationPath = NavigationPath()
-        public var presentedSheet: NavigationStep<Destination>?
-        public var presentedFullScreenCover: NavigationStep<Destination>?
-        public var presentedItem: NavigationStep<Destination>?
-        
-        private var onCompleteHandlers: [UUID: () -> Void] = [:]
-        private var onDismissHandlers: [UUID: () -> Void] = [:]
-        private var stepIdentifiers: [Destination: UUID] = [:]
-        
-        public init() {}
+    public var presentedSheet: NavigationStep<Destination>?
+    public var presentedFullScreenCover: NavigationStep<Destination>?
+    public var presentedItem: NavigationStep<Destination>?
+    
+    private var onCompleteHandlers: [UUID: () -> Void] = [:]
+    private var onDismissHandlers: [UUID: () -> Void] = [:]
+    private var stepIdentifiers: [Destination: UUID] = [:]
+    
+    public init() {}
     
     public func navigate(to step: NavigationStep<Destination>) {
         let identifier = UUID()
@@ -95,6 +95,40 @@ public class NavigationCoordinator<Destination: Hashable> {
         for _ in 0..<min(stepsToRemove, navigationPath.count) {
             navigationPath.removeLast()
         }
+    }
+    
+    // MARK: - Navigation State Queries
+    
+    /// Check if currently at destination
+    public func isAt(_ destination: Destination) -> Bool {
+        return stepIdentifiers.keys.contains(destination)
+    }
+    
+    /// Check if navigation path is empty (at root)
+    public var isAtRoot: Bool {
+        return navigationPath.isEmpty
+    }
+    
+    /// Get current navigation depth
+    public var depth: Int {
+        return navigationPath.count
+    }
+    
+    /// Check if any sheet/fullscreen is presented
+    public var hasPresentation: Bool {
+        return presentedSheet != nil ||
+               presentedFullScreenCover != nil ||
+               presentedItem != nil
+    }
+    
+    /// Check if a specific sheet is presented
+    public func isSheetPresented(_ destination: Destination) -> Bool {
+        return presentedSheet?.destination == destination
+    }
+    
+    /// Check if a specific full screen cover is presented
+    public func isFullScreenPresented(_ destination: Destination) -> Bool {
+        return presentedFullScreenCover?.destination == destination
     }
     
     // MARK: - Existing Methods
