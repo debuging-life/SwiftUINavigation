@@ -928,9 +928,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 📧 Email: your.email@example.com
-- 🐦 Twitter: [@yourhandle](https://twitter.com/yourhandle)
-- 💬 Discussions: [GitHub Discussions](https://github.com/yourusername/SwiftUINavigation/discussions)
+- 📧 Email: contactme@pardipbhatti.pro
+- 🐦 Twitter: [@yourhandle](https://twitter.com/pardipbhattipro)
 
 ---
 
