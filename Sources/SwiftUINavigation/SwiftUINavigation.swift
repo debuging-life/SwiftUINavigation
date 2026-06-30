@@ -4,178 +4,109 @@
 import SwiftUI
 
 // MARK: - Generic Coordinator
+@MainActor
 @Observable
-public class NavigationCoordinator<Destination: Hashable> {
-    public var navigationPath = NavigationPath()
+public final class NavigationCoordinator<Destination: Hashable> {
+
+    /// Typed navigation stack. Using `[Destination]` instead of the type-erased
+    /// `NavigationPath` makes the stack introspectable and reconcilable, which is
+    /// what lets us clean up correctly after the system back button / swipe-back.
+    public var path: [Destination] = []
+
     public var presentedSheet: NavigationStep<Destination>?
     public var presentedFullScreenCover: NavigationStep<Destination>?
-    public var presentedItem: NavigationStep<Destination>?
-    
-    private var onCompleteHandlers: [UUID: () -> Void] = [:]
+
+    // Per-push tokens kept 1:1 with `path`, so any pop can be reconciled.
+    private var pushTokens: [UUID] = []
     private var onDismissHandlers: [UUID: () -> Void] = [:]
-    private var stepIdentifiers: [Destination: UUID] = [:]
-    
+
+    // Dismiss handlers for modally presented destinations.
+    private var sheetOnDismiss: (() -> Void)?
+    private var fullScreenOnDismiss: (() -> Void)?
+
     public init() {}
-    
-    public func navigate(to step: NavigationStep<Destination>) {
-        let identifier = UUID()
-        
-        if let destination = step.destination {
-            stepIdentifiers[destination] = identifier
-            
-            if let onComplete = step.onComplete {
-                onCompleteHandlers[identifier] = onComplete
-            }
-            
-            if let onDismiss = step.onDismiss {
-                onDismissHandlers[identifier] = onDismiss
-            }
-        }
-        
-        switch step.type {
-        case .push:
-            if let destination = step.destination {
-                navigationPath.append(destination)
-            }
-        case .present:
-            presentedItem = step
-        case .sheet:
-            presentedSheet = step
-        case .fullScreenCover:
-            presentedFullScreenCover = step
-        }
+
+    // MARK: - Push
+
+    public func push(_ destination: Destination, onDismiss: (() -> Void)? = nil) {
+        let token = UUID()
+        pushTokens.append(token)
+        if let onDismiss { onDismissHandlers[token] = onDismiss }
+        path.append(destination)
     }
-    
-    // MARK: - Multiple Navigation
-    
-    /// Navigate to multiple destinations in sequence
-    /// - Parameters:
-    ///   - destinations: Array of destinations to navigate to
-    ///   - onBatchComplete: Called after all destinations are pushed (optional)
-    public func navigateToMultiple(
-        _ destinations: [Destination],
-        onBatchComplete: (() -> Void)? = nil
-    ) {
-        guard !destinations.isEmpty else { return }
-        
-        for destination in destinations {
-            navigationPath.append(destination)
-            let identifier = UUID()
-            stepIdentifiers[destination] = identifier
-        }
-        
-        // Call batch completion handler if provided
-        onBatchComplete?()
+
+    public func push(_ destinations: [Destination]) {
+        for destination in destinations { push(destination) }
     }
-    
-    /// Navigate to multiple destinations with individual callbacks
-    /// - Parameter steps: Array of destinations with their respective callbacks
-    public func navigateToMultiple(_ steps: [(destination: Destination, onComplete: (() -> Void)?, onDismiss: (() -> Void)?)]) {
-        for step in steps {
-            let identifier = UUID()
-            stepIdentifiers[step.destination] = identifier
-            
-            if let onComplete = step.onComplete {
-                onCompleteHandlers[identifier] = onComplete
-            }
-            
-            if let onDismiss = step.onDismiss {
-                onDismissHandlers[identifier] = onDismiss
-            }
-            
-            navigationPath.append(step.destination)
-        }
+
+    public func pushAndReplace(to destination: Destination) {
+        navigateToRoot()
+        push(destination)
     }
-    
-    /// Navigate back multiple steps
-    /// - Parameter count: Number of steps to go back (default: all)
-    public func navigateBack(count: Int? = nil) {
-        let stepsToRemove = count ?? navigationPath.count
-        
-        for _ in 0..<min(stepsToRemove, navigationPath.count) {
-            navigationPath.removeLast()
-        }
-    }
-    
-    // MARK: - Navigation State Queries
-    
-    /// Check if currently at destination
-    public func isAt(_ destination: Destination) -> Bool {
-        return stepIdentifiers.keys.contains(destination)
-    }
-    
-    /// Check if navigation path is empty (at root)
-    public var isAtRoot: Bool {
-        return navigationPath.isEmpty
-    }
-    
-    /// Get current navigation depth
-    public var depth: Int {
-        return navigationPath.count
-    }
-    
-    /// Check if any sheet/fullscreen is presented
-    public var hasPresentation: Bool {
-        return presentedSheet != nil ||
-               presentedFullScreenCover != nil ||
-               presentedItem != nil
-    }
-    
-    /// Check if a specific sheet is presented
-    public func isSheetPresented(_ destination: Destination) -> Bool {
-        return presentedSheet?.destination == destination
-    }
-    
-    /// Check if a specific full screen cover is presented
-    public func isFullScreenPresented(_ destination: Destination) -> Bool {
-        return presentedFullScreenCover?.destination == destination
-    }
-    
-    // MARK: - Existing Methods
-    
-    public func completeStep(for destination: Destination) {
-        if let identifier = stepIdentifiers[destination], let handler = onCompleteHandlers[identifier] {
-            handler()
-            onCompleteHandlers.removeValue(forKey: identifier)
-        }
-    }
-    
-    public func dismissStep(for destination: Destination) {
-        if let identifier = stepIdentifiers[destination], let handler = onDismissHandlers[identifier] {
-            handler()
-            onDismissHandlers.removeValue(forKey: identifier)
-            stepIdentifiers.removeValue(forKey: destination)
-        }
-    }
-    
+
+    // MARK: - Pop
+
     public func navigateBack() {
-        if !navigationPath.isEmpty {
-            navigationPath.removeLast()
-        }
+        guard !path.isEmpty else { return }
+        path.removeLast()   // onChange in the view fires reconcile(toDepth:)
     }
-    
+
+    public func navigateBack(count: Int) {
+        guard count > 0, !path.isEmpty else { return }
+        path.removeLast(min(count, path.count))
+    }
+
     public func navigateToRoot() {
-        navigationPath = NavigationPath()
-        onCompleteHandlers.removeAll()
-        onDismissHandlers.removeAll()
-        stepIdentifiers.removeAll()
+        path.removeAll()
     }
-    
+
+    /// Re-syncs handler bookkeeping with `path` after ANY pop — programmatic,
+    /// system back button, or swipe-back gesture — firing the onDismiss handler
+    /// for every destination that left the stack.
+    public func reconcile(toDepth depth: Int) {
+        guard depth < pushTokens.count else { return }
+        while pushTokens.count > depth {
+            let token = pushTokens.removeLast()
+            onDismissHandlers.removeValue(forKey: token)?()
+        }
+    }
+
+    // MARK: - Presentation
+
+    public func presentSheet(_ destination: Destination, onDismiss: (() -> Void)? = nil) {
+        sheetOnDismiss = onDismiss
+        presentedSheet = NavigationStep(destination: destination, type: .sheet)
+    }
+
+    public func presentFullScreen(_ destination: Destination, onDismiss: (() -> Void)? = nil) {
+        fullScreenOnDismiss = onDismiss
+        presentedFullScreenCover = NavigationStep(destination: destination, type: .fullScreenCover)
+    }
+
     public func dismissPresented() {
-        if let step = presentedSheet, let destination = step.destination {
-            dismissStep(for: destination)
-        }
-        
-        if let step = presentedFullScreenCover, let destination = step.destination {
-            dismissStep(for: destination)
-        }
-        
-        if let step = presentedItem, let destination = step.destination {
-            dismissStep(for: destination)
-        }
-        
         presentedSheet = nil
         presentedFullScreenCover = nil
-        presentedItem = nil
+    }
+
+    /// Called from the view's `.sheet(onDismiss:)` so user-driven (swipe-down)
+    /// dismissals also fire the handler.
+    public func didDismissSheet() {
+        sheetOnDismiss?()
+        sheetOnDismiss = nil
+    }
+
+    public func didDismissFullScreen() {
+        fullScreenOnDismiss?()
+        fullScreenOnDismiss = nil
+    }
+
+    // MARK: - Queries (now accurate, because the path is typed)
+
+    public var isAtRoot: Bool { path.isEmpty }
+    public var depth: Int { path.count }
+    public var current: Destination? { path.last }
+    public func contains(_ destination: Destination) -> Bool { path.contains(destination) }
+    public var hasPresentation: Bool {
+        presentedSheet != nil || presentedFullScreenCover != nil
     }
 }

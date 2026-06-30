@@ -9,7 +9,7 @@ import Foundation
 
 public enum NavigationType {
     case push
-    case present
     case sheet
     case fullScreenCover
+    // `.present` removed — it was never wired to a presentation modifier.
 }

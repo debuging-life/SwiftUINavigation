@@ -22,5 +22,6 @@ let package = Package(
             name: "SwiftUINavigation"
         ),
 
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )
